@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VoPo — Voice to Prompt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: #1e1e2e;
+    --accent: #c8f25a;
+    --accent2: #5af2c8;
+    --muted: #3a3a52;
+    --text: #e8e8f0;
+    --text-dim: #7070a0;
+    --red: #f25a5a;
+    --radius: 12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(200,242,90,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(200,242,90,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow blob */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(200,242,90,0.07) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 56px;
+  }
+
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.6rem;
+    letter-spacing: -1px;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .logo span {
+    font-style: italic;
+    color: var(--text);
+  }
+
+  .tagline {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding-bottom: 4px;
+  }
+
+  .powered {
+    margin-left: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    white-space: nowrap;
+  }
+
+  .powered b { color: var(--accent2); }
+
+  /* Type tabs */
+  .type-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+
+  .type-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Syne', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 7px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+
+  .type-btn:hover { border-color: var(--muted); color: var(--text); }
+
+  .type-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0a0a0f;
+  }
+
+  /* Main recorder card */
+  .recorder-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .recorder-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  .recorder-card.listening::before { opacity: 1; }
+
+  /* Waveform */
+  .waveform {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 48px;
+    margin-bottom: 28px;
+  }
+
+  .bar {
+    width: 3px;
+    background: var(--muted);
+    border-radius: 3px;
+    height: 8px;
+    transition: background 0.3s;
+  }
+
+  .listening .bar {
+    background: var(--accent);
+    animation: wave 1s ease-in-out infinite;
+  }
+
+  .bar:nth-child(1)  { animation-delay: 0.0s; }
+  .bar:nth-child(2)  { animation-delay: 0.07s; }
+  .bar:nth-child(3)  { animation-delay: 0.14s; }
+  .bar:nth-child(4)  { animation-delay: 0.21s; }
+  .bar:nth-child(5)  { animation-delay: 0.28s; }
+  .bar:nth-child(6)  { animation-delay: 0.21s; }
+  .bar:nth-child(7)  { animation-delay: 0.14s; }
+  .bar:nth-child(8)  { animation-delay: 0.07s; }
+  .bar:nth-child(9)  { animation-delay: 0.0s; }
+  .bar:nth-child(10) { animation-delay: 0.07s; }
+  .bar:nth-child(11) { animation-delay: 0.14s; }
+  .bar:nth-child(12) { animation-delay: 0.21s; }
+  .bar:nth-child(13) { animation-delay: 0.28s; }
+
+  @keyframes wave {
+    0%, 100% { height: 8px; opacity: 0.6; }
+    50% { height: 38px; opacity: 1; }
+  }
+
+  /* Record button */
+  .record-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+
+  .record-btn {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.22s cubic-bezier(0.34,1.56,0.64,1);
+    background: var(--accent);
+    box-shadow: 0 0 0 0 rgba(200,242,90,0.4);
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .record-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 12px rgba(200,242,90,0.12);
+  }
+
+  .record-btn.recording {
+    background: var(--red);
+    box-shadow: 0 0 0 0 rgba(242,90,90,0.4);
+    animation: pulse-red 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-red {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(242,90,90,0.5); }
+    50% { box-shadow: 0 0 0 18px rgba(242,90,90,0); }
+  }
+
+  /* mic icon */
+  .icon-mic {
+    width: 28px; height: 28px;
+    fill: #0a0a0f;
+  }
+
+  /* stop icon (square) */
+  .icon-stop {
+    width: 22px; height: 22px;
+    background: #0a0a0f;
+    border-radius: 4px;
+    display: none;
+  }
+
+  .record-btn.recording .icon-mic { display: none; }
+  .record-btn.recording .icon-stop { display: block; }
+
+  .record-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .record-btn.recording + .record-label {
+    color: var(--red);
+  }
+
+  /* Transcript */
+  .transcript-area {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    min-height: 80px;
+    padding: 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    outline: none;
+    transition: border-color 0.2s;
+    resize: vertical;
+    width: 100%;
+  }
+
+  .transcript-area:focus { border-color: var(--muted); }
+  .transcript-area.interim { color: var(--text-dim); }
+
+  .transcript-placeholder {
+    position: absolute;
+    top: 16px; left: 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .transcript-wrap { position: relative; }
+
+  /* Generate button */
+  .generate-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--accent);
+    color: #0a0a0f;
+    border: none;
+    border-radius: 40px;
+    padding: 14px 32px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 20px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .generate-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .generate-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+  .btn-arrow { font-size: 1.1rem; }
+
+  /* Result card */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    display: none;
+    animation: slide-up 0.35s ease;
+  }
+
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-card.visible { display: block; }
+
+  .result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .result-label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent2);
+  }
+
+  .result-actions { display: flex; gap: 8px; }
+
+  .action-btn {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-family: 'Syne', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+
+  .action-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+  .action-btn.copy-success { border-color: var(--accent); color: var(--accent); }
+
+  .result-text {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.88rem;
+    line-height: 1.75;
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+
+  /* Status */
+  .status {
+    text-align: center;
+    font-size: 0.78rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--text-dim);
+    margin-top: 12px;
+    min-height: 20px;
+  }
+  .status.error { color: var(--red); }
+  .status.success { color: var(--accent); }
+
+  /* Loader dots */
+  .dots::after {
+    content: '';
+    animation: dots 1.2s steps(3, end) infinite;
+  }
+  @keyframes dots {
+    0%   { content: '.'; }
+    33%  { content: '..'; }
+    66%  { content: '...'; }
+  }
+
+  /* Unsupported */
+  .unsupported {
+    background: rgba(242,90,90,0.08);
+    border: 1px solid rgba(242,90,90,0.3);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    font-size: 0.82rem;
+    color: var(--red);
+    margin-bottom: 20px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="logo">Vo<span>Po</span></div>
+      <div class="tagline">Voice to Prompt</div>
+    </div>
+    <div class="powered">powered by <b>Gemini</b></div>
+  </header>
+
+  <div class="unsupported" id="unsupported">
+    ⚠ Web Speech API is not supported in this browser. Use Chrome or Edge.
+  </div>
+
+  <!-- Type selector -->
+  <div class="type-bar" id="typeBar">
+    <button class="type-btn active" data-type="general">✦ General</button>
+    <button class="type-btn" data-type="image">🖼 Image</button>
+    <button class="type-btn" data-type="text">📝 Text</button>
+    <button class="type-btn" data-type="code">⌨ Code</button>
+  </div>
+
+  <!-- Recorder card -->
+  <div class="recorder-card" id="recorderCard">
+    <div class="waveform" id="waveform">
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+
+    <div class="record-row">
+      <button class="record-btn" id="recordBtn" title="Start / Stop recording">
+        <!-- Mic icon -->
+        <svg class="icon-mic" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 1a4 4 0 0 1 4 4v7a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm0 18a7 7 0 0 0 7-7h-2a5 5 0 0 1-10 0H5a7 7 0 0 0 7 7zm-1 2v-2h2v2h-1z"/>
+        </svg>
+        <!-- Stop icon -->
+        <div class="icon-stop"></div>
+      </button>
+      <span class="record-label" id="recordLabel">Tap to speak</span>
+    </div>
+
+    <div class="transcript-wrap">
+      <textarea
+        class="transcript-area"
+        id="transcript"
+        placeholder="Your words appear here… or type directly."
+        rows="3"
+      ></textarea>
+    </div>
+
+    <button class="generate-btn" id="generateBtn" disabled>
+      <span>Generate Prompt</span>
+      <span class="btn-arrow">→</span>
+    </button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <!-- Result -->
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      <span class="result-label">✦ Enhanced Prompt</span>
+      <div class="result-actions">
+        <button class="action-btn" id="improveBtn">Improve ↑</button>
+        <button class="action-btn" id="copyBtn">Copy</button>
+      </div>
+    </div>
+    <div class="result-text" id="resultText"></div>
+  </div>
+
+</div>
+
+<script>
+const BACKEND = "http://localhost:5000";
+
+// State
+let recognition = null;
+let isRecording = false;
+let selectedType = "general";
+let currentPrompt = "";
+
+// Elements
+const recordBtn   = document.getElementById("recordBtn");
+const recordLabel = document.getElementById("recordLabel");
+const recorderCard= document.getElementById("recorderCard");
+const waveform    = document.getElementById("waveform");
+const transcript  = document.getElementById("transcript");
+const generateBtn = document.getElementById("generateBtn");
+const resultCard  = document.getElementById("resultCard");
+const resultText  = document.getElementById("resultText");
+const status      = document.getElementById("status");
+const copyBtn     = document.getElementById("copyBtn");
+const improveBtn  = document.getElementById("improveBtn");
+
+// --- Speech Recognition setup ---
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (!SpeechRecognition) {
+  document.getElementById("unsupported").style.display = "block";
+} else {
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = "en-US";
+
+  let finalTranscript = "";
+
+  recognition.onstart = () => {
+    finalTranscript = transcript.value.trim();
+    setRecording(true);
+  };
+
+  recognition.onresult = (e) => {
+    let interim = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalTranscript += (finalTranscript ? " " : "") + t.trim();
+      else interim = t;
+    }
+    transcript.value = finalTranscript + (interim ? " " + interim : "");
+    updateGenBtn();
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error !== "aborted") setStatus("Mic error: " + e.error, "error");
+    setRecording(false);
+  };
+
+  recognition.onend = () => {
+    // Only restart if user hasn't pressed stop
+    if (isRecording) {
+      // recognition ended on its own (timeout), keep UI in recording state but restart
+      recognition.start();
+    }
+  };
+}
+
+// --- Toggle recording ---
+function startRecording() {
+  if (!recognition) return;
+  recognition.start();
+}
+
+function stopRecording() {
+  if (!recognition) return;
+  isRecording = false; // set flag before calling stop so onend doesn't restart
+  recognition.stop();
+  setRecording(false);
+}
+
+recordBtn.addEventListener("click", () => {
+  if (!recognition) return;
+  if (!isRecording) {
+    startRecording();
+  } else {
+    stopRecording();
+  }
+});
+
+function setRecording(state) {
+  isRecording = state;
+  recordBtn.classList.toggle("recording", state);
+  recorderCard.classList.toggle("listening", state);
+  recordLabel.textContent = state ? "Tap to stop" : "Tap to speak";
+  if (!state) setStatus("");
+}
+
+// --- Type tabs ---
+document.getElementById("typeBar").addEventListener("click", (e) => {
+  const btn = e.target.closest(".type-btn");
+  if (!btn) return;
+  document.querySelectorAll(".type-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  selectedType = btn.dataset.type;
+});
+
+// --- Transcript textarea input ---
+transcript.addEventListener("input", updateGenBtn);
+
+function updateGenBtn() {
+  generateBtn.disabled = !transcript.value.trim();
+}
+
+// --- Generate ---
+generateBtn.addEventListener("click", async () => {
+  const text = transcript.value.trim();
+  if (!text) return;
+
+  stopRecording();
+  setLoading(true);
+
+  try {
+    const res = await fetch(`${BACKEND}/generate-prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, type: selectedType })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Server error");
+    showResult(data.prompt);
+    setStatus("✦ Prompt generated", "success");
+  } catch (err) {
+    setStatus(err.message, "error");
+  } finally {
+    setLoading(false);
+  }
+});
+
+// --- Improve ---
+improveBtn.addEventListener("click", async () => {
+  if (!currentPrompt) return;
+  setLoading(true);
+
+  try {
+    const res = await fetch(`${BACKEND}/improve-prompt`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: currentPrompt })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Server error");
+    showResult(data.prompt);
+    setStatus("✦ Prompt improved", "success");
+  } catch (err) {
+    setStatus(err.message, "error");
+  } finally {
+    setLoading(false);
+  }
+});
+
+// --- Copy ---
+copyBtn.addEventListener("click", () => {
+  navigator.clipboard.writeText(currentPrompt).then(() => {
+    copyBtn.textContent = "Copied ✓";
+    copyBtn.classList.add("copy-success");
+    setTimeout(() => {
+      copyBtn.textContent = "Copy";
+      copyBtn.classList.remove("copy-success");
+    }, 1800);
+  });
+});
+
+// --- Helpers ---
+function showResult(text) {
+  currentPrompt = text;
+  resultText.textContent = text;
+  resultCard.classList.add("visible");
+}
+
+function setLoading(state) {
+  generateBtn.disabled = state;
+  improveBtn.disabled = state;
+  if (state) {
+    status.textContent = "";
+    status.innerHTML = '<span class="dots">Generating</span>';
+    status.className = "status";
+  }
+}
+
+function setStatus(msg, type = "") {
+  status.textContent = msg;
+  status.className = "status" + (type ? " " + type : "");
+}
+</script>
+</body>
+</html>
